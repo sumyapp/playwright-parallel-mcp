@@ -8,3 +8,6 @@ coverage/
 
 # Plan files (development only)
 docs/plans/
+
+# Internal review reports
+review-reports/

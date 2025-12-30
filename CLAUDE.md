@@ -2,52 +2,51 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## プロジェクト概要
+## Project Overview
 
-複数のAIエージェントが同時に独立したブラウザインスタンスを制御できるMCP（Model Context Protocol）サーバー。既存のブラウザ自動化MCPサーバーがセッション間でブラウザを共有する問題を解決し、各セッションに分離されたブラウザインスタンスを提供する。
+An MCP (Model Context Protocol) server that enables multiple AI agents to simultaneously control independent browser instances. This solves the problem of existing browser automation MCP servers sharing browsers between sessions by providing isolated browser instances for each session.
 
-## 開発コマンド
+## Development Commands
 
 ```bash
-pnpm install          # 依存関係インストール
-pnpm build            # tsupでビルド（dist/へ出力）
-pnpm dev              # ウォッチモードでビルド
-pnpm start            # ビルド済みサーバーを起動
-pnpm test             # vitestでテスト実行
-pnpm typecheck        # TypeScript型チェック
+pnpm install          # Install dependencies
+pnpm build            # Build with tsup (outputs to dist/)
+pnpm dev              # Build in watch mode
+pnpm start            # Start the built server
+pnpm test             # Run tests with vitest
+pnpm typecheck        # TypeScript type checking
 ```
 
-## アーキテクチャ
+## Architecture
 
 ```
 src/
-├── index.ts           # MCPサーバーエントリポイント、全ツール定義
-└── session-manager.ts # ブラウザセッション管理（シングルトン）
+├── index.ts           # MCP server entry point, all tool definitions
+└── session-manager.ts # Browser session management (singleton)
 ```
 
-### コア設計
+### Core Design
 
-- **SessionManager（シングルトン）**: `Map<string, Session>`でセッションを管理。各セッションは独立したBrowser、BrowserContext、Pageを持つ
-- **Session**: ブラウザインスタンス、コンソールログ（最大1000件保持）、メタデータを保持
-- **MCPツール**: `@modelcontextprotocol/sdk`の`server.tool()`でツールを定義。Zodスキーマで引数を検証
+- **SessionManager (Singleton)**: Manages sessions via `Map<string, Session>`. Each session has an independent Browser, BrowserContext, and Page
+- **Session**: Holds browser instance, console logs (max 1000 entries), and metadata
+- **MCP Tools**: Defined using `server.tool()` from `@modelcontextprotocol/sdk` with Zod schema validation
 
-### ツール追加パターン
+### Adding New Tools
 
-`src/index.ts`に以下の形式で追加：
+Add to `src/index.ts`:
 
 ```typescript
 server.tool(
   "tool_name",
   "Tool description",
   {
-    // Zodスキーマで引数定義
     sessionId: z.string(),
     param: z.string().optional()
   },
   async ({ sessionId, param }) => {
     const session = sessionManager.getSession(sessionId);
     if (!session) throw new Error(`Session not found: ${sessionId}`);
-    // 処理
+    // Implementation
     return {
       content: [{ type: "text", text: JSON.stringify(result) }]
     };
@@ -55,11 +54,35 @@ server.tool(
 );
 ```
 
-## 技術スタック
+## Contribution Guidelines
 
-- TypeScript (ES2022, ESM)
-- tsup（バンドル、`#!/usr/bin/env node` shebang自動付与）
-- Playwright（Chromium/Firefox/WebKit）
-- MCP SDK（stdio transport）
-- Zod（スキーマ検証）
-- Vitest（テスト）
+### Language
+
+- **Code**: All code, comments, and documentation must be in English
+- **Commits**: Write commit messages in English
+- **Issues/PRs**: Use English for all GitHub communication
+
+### Commit Message Format
+
+Use concise, descriptive commit messages:
+- `feat: add screenshot tool` - New feature
+- `fix: handle null session gracefully` - Bug fix
+- `docs: update README examples` - Documentation
+- `refactor: extract validation logic` - Code improvement
+- `test: add navigation edge cases` - Test additions
+
+### Code Style
+
+- Follow existing patterns in the codebase
+- Use TypeScript strict mode
+- Validate all tool inputs with Zod schemas
+- Handle errors gracefully with descriptive messages
+
+## Tech Stack
+
+- **TypeScript** (ES2022, ESM)
+- **tsup** - Bundler with shebang injection
+- **Playwright** - Browser automation (Chromium/Firefox/WebKit)
+- **MCP SDK** - Model Context Protocol server (stdio transport)
+- **Zod** - Runtime schema validation
+- **Vitest** - Testing framework
