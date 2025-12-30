@@ -1,0 +1,53 @@
+{
+  "name": "playwright-parallel-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for parallel browser automation with isolated Playwright sessions",
+  "type": "module",
+  "bin": {
+    "playwright-parallel-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "node dist/index.js",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "browser-automation",
+    "playwright",
+    "claude",
+    "ai-agent",
+    "parallel",
+    "isolated-sessions"
+  ],
+  "author": "sumyapp",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sumyapp/playwright-parallel-mcp"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "playwright": "^1.49.0",
+    "zod": "^3.24.0",
+    "zod-to-json-schema": "^3.25.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}
