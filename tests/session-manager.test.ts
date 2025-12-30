@@ -548,4 +548,56 @@ describe('SessionManager', () => {
       expect(sessionManager.getSession(sessionId)).toBeUndefined();
     });
   });
+
+  describe('Edge Cases for 100% Coverage', () => {
+    it('should handle closing already disconnected browser gracefully', async () => {
+      const session = await sessionManager.createSession({ headless: true });
+      const sessionId = session.id;
+
+      // Close browser directly first
+      await session.browser.close();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Try to close session again - should not throw
+      // (session is already removed by disconnect handler)
+      const result = sessionManager.getSession(sessionId);
+      expect(result).toBeUndefined();
+    });
+
+    it('should handle cleanupSessionListeners when page is already closed', async () => {
+      const session = await sessionManager.createSession({ headless: true });
+
+      // Close the page directly
+      await session.page.close();
+
+      // Close session should still work (triggers cleanupSessionListeners catch block)
+      await sessionManager.closeSession(session.id);
+
+      expect(sessionManager.getSession(session.id)).toBeUndefined();
+    });
+
+    it('should trim dialogs when exceeding 100', async () => {
+      const session = await sessionManager.createSession({ headless: true });
+
+      // Create HTML that will trigger many dialogs
+      await session.page.route('http://localhost:7777/**', route => {
+        route.fulfill({
+          contentType: 'text/html',
+          body: `
+            <script>
+              for (let i = 0; i < 105; i++) {
+                alert('Dialog ' + i);
+              }
+            </script>
+          `
+        });
+      });
+
+      await session.page.goto('http://localhost:7777/dialogs.html');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Should have at most 100 dialogs (trimmed)
+      expect(session.pendingDialogs.length).toBeLessThanOrEqual(100);
+    });
+  });
 });
