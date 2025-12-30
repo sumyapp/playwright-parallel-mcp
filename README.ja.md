@@ -1,5 +1,9 @@
 # playwright-parallel-mcp
 
+[![CI](https://github.com/sumyapp/playwright-parallel-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/sumyapp/playwright-parallel-mcp/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/sumyapp/playwright-parallel-mcp/badge.svg?branch=main)](https://coveralls.io/github/sumyapp/playwright-parallel-mcp?branch=main)
+[![npm version](https://badge.fury.io/js/playwright-parallel-mcp.svg)](https://www.npmjs.com/package/playwright-parallel-mcp)
+
 [English](README.md) | **[日本語](README.ja.md)** | [中文](README.zh.md)
 
 複数のAIエージェントが**独立したブラウザインスタンス**を並列で制御できるMCP（Model Context Protocol）サーバーです。
@@ -21,6 +25,64 @@
 ## 解決策
 
 playwright-parallel-mcpは**各セッションに分離されたブラウザインスタンス**を作成し、真の並列ブラウザ自動化を実現します。
+
+## セッション分離保証
+
+**各セッションは100%分離されています。** これはアーキテクチャレベルで保証され、包括的なテストで検証されています。
+
+### アーキテクチャ
+
+```
+セッションA                  セッションB                  セッションC
+    │                            │                            │
+    ▼                            ▼                            ▼
+┌─────────┐                ┌─────────┐                ┌─────────┐
+│ブラウザ │                │ブラウザ │                │ブラウザ │
+│プロセス │                │プロセス │                │プロセス │
+│  (OS)   │                │  (OS)   │                │  (OS)   │
+└────┬────┘                └────┬────┘                └────┬────┘
+     │                          │                          │
+     ▼                          ▼                          ▼
+┌─────────┐                ┌─────────┐                ┌─────────┐
+│コンテキスト│              │コンテキスト│              │コンテキスト│
+│(Cookie) │                │(Cookie) │                │(Cookie) │
+└────┬────┘                └────┬────┘                └────┬────┘
+     │                          │                          │
+     ▼                          ▼                          ▼
+┌─────────┐                ┌─────────┐                ┌─────────┐
+│ ページ  │                │ ページ  │                │ ページ  │
+│ (DOM)   │                │ (DOM)   │                │ (DOM)   │
+└─────────┘                └─────────┘                └─────────┘
+```
+
+### 分離されるリソース
+
+| リソース | 分離? | 方法 |
+|----------|-------|------|
+| ブラウザプロセス | ✅ はい | セッションごとに独立したOSプロセス |
+| Cookie | ✅ はい | 独立したBrowserContext |
+| localStorage | ✅ はい | 独立したBrowserContext |
+| sessionStorage | ✅ はい | 独立したBrowserContext |
+| DOM | ✅ はい | 独立したPageインスタンス |
+| ナビゲーション履歴 | ✅ はい | 独立したPageインスタンス |
+| コンソールログ | ✅ はい | セッションごとに保存 |
+| ネットワークログ | ✅ はい | セッションごとに保存 |
+
+### テストカバレッジ
+
+セッション分離は**17の専用テスト**で検証されています：
+
+- ブラウザプロセスの分離
+- ナビゲーションの分離
+- DOMの分離
+- Cookieの分離
+- localStorage/sessionStorageの分離
+- コンソールログの分離
+- ネットワークログの分離
+- 並行操作の安全性
+- セッションIDの一意性（UUID v4）
+
+`pnpm test`を実行して分離保証を確認できます。
 
 ## 特徴
 

@@ -1,5 +1,9 @@
 # playwright-parallel-mcp
 
+[![CI](https://github.com/sumyapp/playwright-parallel-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/sumyapp/playwright-parallel-mcp/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/sumyapp/playwright-parallel-mcp/badge.svg?branch=main)](https://coveralls.io/github/sumyapp/playwright-parallel-mcp?branch=main)
+[![npm version](https://badge.fury.io/js/playwright-parallel-mcp.svg)](https://www.npmjs.com/package/playwright-parallel-mcp)
+
 [English](README.md) | [日本語](README.ja.md) | **[中文](README.zh.md)**
 
 一个MCP（Model Context Protocol）服务器，使AI代理能够并行控制**多个独立的浏览器实例**。
@@ -21,6 +25,64 @@
 ## 解决方案
 
 playwright-parallel-mcp为**每个会话创建隔离的浏览器实例**，实现真正的并行浏览器自动化。
+
+## 会话隔离保证
+
+**每个会话100%隔离。** 这在架构层面得到保证，并通过全面的测试进行验证。
+
+### 架构
+
+```
+会话A                        会话B                        会话C
+    │                            │                            │
+    ▼                            ▼                            ▼
+┌─────────┐                ┌─────────┐                ┌─────────┐
+│ 浏览器  │                │ 浏览器  │                │ 浏览器  │
+│  进程   │                │  进程   │                │  进程   │
+│  (OS)   │                │  (OS)   │                │  (OS)   │
+└────┬────┘                └────┬────┘                └────┬────┘
+     │                          │                          │
+     ▼                          ▼                          ▼
+┌─────────┐                ┌─────────┐                ┌─────────┐
+│  上下文  │                │  上下文  │                │  上下文  │
+│(Cookie) │                │(Cookie) │                │(Cookie) │
+└────┬────┘                └────┬────┘                └────┬────┘
+     │                          │                          │
+     ▼                          ▼                          ▼
+┌─────────┐                ┌─────────┐                ┌─────────┐
+│  页面   │                │  页面   │                │  页面   │
+│ (DOM)   │                │ (DOM)   │                │ (DOM)   │
+└─────────┘                └─────────┘                └─────────┘
+```
+
+### 隔离的资源
+
+| 资源 | 隔离? | 方式 |
+|------|-------|------|
+| 浏览器进程 | ✅ 是 | 每个会话独立的OS进程 |
+| Cookie | ✅ 是 | 独立的BrowserContext |
+| localStorage | ✅ 是 | 独立的BrowserContext |
+| sessionStorage | ✅ 是 | 独立的BrowserContext |
+| DOM | ✅ 是 | 独立的Page实例 |
+| 导航历史 | ✅ 是 | 独立的Page实例 |
+| 控制台日志 | ✅ 是 | 按会话存储 |
+| 网络日志 | ✅ 是 | 按会话存储 |
+
+### 测试覆盖
+
+会话隔离通过**17个专用测试**进行验证：
+
+- 浏览器进程隔离
+- 导航隔离
+- DOM隔离
+- Cookie隔离
+- localStorage/sessionStorage隔离
+- 控制台日志隔离
+- 网络日志隔离
+- 并发操作安全性
+- 会话ID唯一性（UUID v4）
+
+运行 `pnpm test` 验证隔离保证。
 
 ## 特性
 

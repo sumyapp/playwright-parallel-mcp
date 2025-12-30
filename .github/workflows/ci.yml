@@ -40,8 +40,17 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install chromium
 
-      - name: Run tests
-        run: pnpm test
+      - name: Run tests with coverage
+        run: npx vitest run --coverage
+
+      - name: Upload coverage to Coveralls
+        if: matrix.node-version == 20
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: coverage/lcov.info
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
 
   publish-dry-run:
     runs-on: ubuntu-latest

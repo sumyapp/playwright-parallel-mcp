@@ -1,5 +1,9 @@
 # playwright-parallel-mcp
 
+[![CI](https://github.com/sumyapp/playwright-parallel-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/sumyapp/playwright-parallel-mcp/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/sumyapp/playwright-parallel-mcp/badge.svg?branch=main)](https://coveralls.io/github/sumyapp/playwright-parallel-mcp?branch=main)
+[![npm version](https://badge.fury.io/js/playwright-parallel-mcp.svg)](https://www.npmjs.com/package/playwright-parallel-mcp)
+
 **[English](README.md)** | [日本語](README.ja.md) | [中文](README.zh.md)
 
 A Model Context Protocol (MCP) server that enables AI agents to control **multiple independent browser instances** in parallel.
@@ -21,6 +25,64 @@ Existing browser automation MCP servers (Chrome DevTools MCP, Playwright MCP) sh
 ## The Solution
 
 playwright-parallel-mcp creates **isolated browser instances for each session**, enabling true parallel browser automation.
+
+## Session Isolation Guarantee
+
+**Each session is 100% isolated.** This is architecturally guaranteed and verified by comprehensive tests.
+
+### Architecture
+
+```
+Session A                    Session B                    Session C
+    │                            │                            │
+    ▼                            ▼                            ▼
+┌─────────┐                ┌─────────┐                ┌─────────┐
+│ Browser │                │ Browser │                │ Browser │
+│ Process │                │ Process │                │ Process │
+│  (OS)   │                │  (OS)   │                │  (OS)   │
+└────┬────┘                └────┬────┘                └────┬────┘
+     │                          │                          │
+     ▼                          ▼                          ▼
+┌─────────┐                ┌─────────┐                ┌─────────┐
+│ Context │                │ Context │                │ Context │
+│(cookies)│                │(cookies)│                │(cookies)│
+└────┬────┘                └────┬────┘                └────┬────┘
+     │                          │                          │
+     ▼                          ▼                          ▼
+┌─────────┐                ┌─────────┐                ┌─────────┐
+│  Page   │                │  Page   │                │  Page   │
+│ (DOM)   │                │ (DOM)   │                │ (DOM)   │
+└─────────┘                └─────────┘                └─────────┘
+```
+
+### What's Isolated
+
+| Resource | Isolated? | How |
+|----------|-----------|-----|
+| Browser Process | ✅ Yes | Separate OS process per session |
+| Cookies | ✅ Yes | Separate BrowserContext |
+| localStorage | ✅ Yes | Separate BrowserContext |
+| sessionStorage | ✅ Yes | Separate BrowserContext |
+| DOM | ✅ Yes | Separate Page instance |
+| Navigation History | ✅ Yes | Separate Page instance |
+| Console Logs | ✅ Yes | Stored per session |
+| Network Logs | ✅ Yes | Stored per session |
+
+### Test Coverage
+
+Session isolation is verified by **17 dedicated tests** covering:
+
+- Browser process isolation
+- Navigation isolation
+- DOM isolation
+- Cookie isolation
+- localStorage/sessionStorage isolation
+- Console log isolation
+- Network log isolation
+- Concurrent operation safety
+- Session ID uniqueness (UUID v4)
+
+Run `pnpm test` to verify isolation guarantees.
 
 ## Features
 
