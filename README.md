@@ -13,8 +13,8 @@ A Model Context Protocol (MCP) server that enables AI agents to control **multip
 > **This MCP server provides powerful browser automation capabilities that can be exploited if exposed to untrusted parties.**
 
 - **`run_script`**: Executes arbitrary JavaScript in the browser context
-- **`generate_pdf`** / **`upload_file`**: Accesses the file system for reading/writing files
-- **`add_init_script`**: Injects scripts that run on every page load
+- **`upload_file`**: Accesses the file system for uploading files
+- **`generate_pdf`** / **`add_init_script`**: (Full mode only) Additional file system and script injection capabilities
 
 **Do not expose this server to untrusted users or AI agents.** Only use it in controlled environments where you trust all clients that can connect to it.
 
@@ -88,11 +88,10 @@ Run `pnpm test` to verify isolation guarantees.
 
 - **Parallel Sessions** - Each session gets its own browser instance
 - **Multiple Browsers** - Chromium, Firefox, WebKit support
-- **63 Tools** - Comprehensive browser automation capabilities
-- **Console & Network Logs** - Full debugging support
-- **JS Error Detection** - Capture JavaScript errors
+- **22 Tools** - Essential browser automation (63 in Full mode)
+- **Low Context Usage** - ~14k tokens (comparable to @playwright/mcp)
+- **Console Logs** - Capture console output for debugging
 - **Dialog Handling** - Handle alert, confirm, prompt dialogs
-- **Performance Metrics** - Get timing and memory metrics
 - **Accessibility Snapshots** - ARIA snapshot format (Playwright 1.49+)
 - **Free & Local** - No cloud service required
 
@@ -120,126 +119,49 @@ npm install -g playwright-parallel-mcp
 playwright-parallel-mcp
 ```
 
-## Available Tools (63 total)
+## Available Tools (22 tools)
 
-### Session Management (3 tools)
+### Session Management (3)
 | Tool | Description |
 |------|-------------|
 | `create_session` | Create a new isolated browser session (chromium/firefox/webkit) |
 | `close_session` | Close a browser session |
 | `list_sessions` | List all active sessions |
 
-### Navigation (5 tools)
+### Navigation (4)
 | Tool | Description |
 |------|-------------|
 | `navigate` | Navigate to a URL |
 | `go_back` | Go back in browser history |
-| `go_forward` | Go forward in browser history |
 | `reload` | Reload the current page |
 | `get_url` | Get current URL and page title |
 
-### Page Inspection (4 tools)
+### Page Inspection (2)
 | Tool | Description |
 |------|-------------|
 | `snapshot` | Get accessibility tree (ARIA snapshot format) |
 | `screenshot` | Take a screenshot (PNG/JPEG, full page or element) |
-| `get_content` | Get text content of page or element |
-| `get_html` | Get HTML of page or element |
 
-### User Interaction (8 tools)
+### User Interaction (6)
 | Tool | Description |
 |------|-------------|
 | `click` | Click an element (left/right/middle button) |
 | `fill` | Fill a form input with text |
-| `select_option` | Select from dropdown |
-| `hover` | Hover over an element |
-| `press_key` | Press keyboard key (e.g., Enter, Control+A) |
 | `type` | Type text with realistic key-by-key input |
-| `check` | Check a checkbox |
-| `uncheck` | Uncheck a checkbox |
+| `press_key` | Press keyboard key (e.g., Enter, Control+A) |
+| `hover` | Hover over an element |
+| `select_option` | Select from dropdown |
 
-### Wait Tools (5 tools)
+### Other Tools (7)
 | Tool | Description |
 |------|-------------|
-| `wait_for_selector` | Wait for an element to appear/disappear |
-| `wait_for_load_state` | Wait for page load state (load/domcontentloaded/networkidle) |
-| `wait_for_url` | Wait for URL to match a pattern |
-| `wait_for_function` | Wait for JavaScript condition to be truthy |
 | `wait_for_timeout` | Wait for a specified duration |
-
-### Dialog Tools (2 tools)
-| Tool | Description |
-|------|-------------|
-| `get_dialogs` | Get dialog history from the session |
 | `set_dialog_handler` | Configure automatic dialog handling (accept/dismiss) |
-
-### Element State Tools (5 tools)
-| Tool | Description |
-|------|-------------|
-| `get_element_state` | Get element state (visible, enabled, checked, editable) |
-| `get_attribute` | Get an attribute value from an element |
-| `get_bounding_box` | Get the bounding box of an element |
-| `count_elements` | Count elements matching a selector |
-| `get_all_texts` | Get text content from all matching elements |
-
-### File/Drag/Scroll Tools (4 tools)
-| Tool | Description |
-|------|-------------|
 | `upload_file` | Upload file(s) to a file input element |
 | `drag_and_drop` | Drag an element and drop it on another |
-| `scroll` | Scroll the page or an element |
-| `scroll_into_view` | Scroll an element into view |
-
-### Mouse Tools (5 tools)
-| Tool | Description |
-|------|-------------|
-| `mouse_move` | Move mouse to specific coordinates |
-| `mouse_click` | Click at specific coordinates |
-| `mouse_down` | Press mouse button down |
-| `mouse_up` | Release mouse button |
-| `mouse_wheel` | Scroll using mouse wheel |
-
-### Emulation Tools (4 tools)
-| Tool | Description |
-|------|-------------|
-| `set_viewport` | Change the viewport size |
-| `set_geolocation` | Set geolocation for the browser context |
-| `set_offline` | Set browser offline/online mode |
-| `set_extra_http_headers` | Set extra HTTP headers for all requests |
-
-### PDF/Frame Tools (5 tools)
-| Tool | Description |
-|------|-------------|
-| `generate_pdf` | Generate a PDF of the current page (Chromium only) |
-| `list_frames` | List all frames in the page |
-| `frame_click` | Click on an element within a frame |
-| `frame_fill` | Fill an input within a frame |
-| `frame_get_content` | Get text content from an element within a frame |
-
-### Debug Tools (6 tools)
-| Tool | Description |
-|------|-------------|
-| `get_page_errors` | Get JavaScript errors from the page |
-| `clear_logs` | Clear console/network/error/dialog logs |
-| `expose_function` | Expose a function to the page that logs calls |
-| `add_init_script` | Add a script to run before page load |
-| `get_metrics` | Get page performance metrics |
-| `get_accessibility_tree` | Get the accessibility tree of page or element |
-
-### Storage/Cookie Tools (4 tools)
-| Tool | Description |
-|------|-------------|
-| `get_cookies` | Get cookies from browser context |
-| `set_cookies` | Set cookies in browser context |
-| `get_storage` | Get localStorage/sessionStorage values |
-| `set_storage` | Set localStorage/sessionStorage values |
-
-### Logging Tools (3 tools)
-| Tool | Description |
-|------|-------------|
-| `get_console_logs` | Get console logs (log/info/warn/error/debug) |
-| `get_network_logs` | Get network request logs with filtering |
 | `run_script` | Execute JavaScript in browser context |
+| `get_console_logs` | Get console logs (log/info/warn/error/debug) |
+| `set_viewport` | Change the viewport size |
 
 ## Usage Examples
 
@@ -282,15 +204,14 @@ Claude: I'll fill in the form fields and submit.
 [click sessionId="abc123" selector="button[type='submit']"]
 ```
 
-### Debugging
+### Console Logs
 
 ```
-User: Check for JavaScript errors on the page
+User: Check console output on the page
 
-Claude: I'll check for JavaScript errors and console logs.
+Claude: I'll check for console logs and errors.
 
-[get_page_errors sessionId="abc123"]
-[get_console_logs sessionId="abc123" types=["error"]]
+[get_console_logs sessionId="abc123" types=["error", "warn"]]
 ```
 
 ### Dialog Handling
@@ -298,11 +219,10 @@ Claude: I'll check for JavaScript errors and console logs.
 ```
 User: Handle the confirmation dialog
 
-Claude: I'll set up automatic dialog handling and check for dialogs.
+Claude: I'll set up automatic dialog handling.
 
 [set_dialog_handler sessionId="abc123" autoRespond=true accept=true]
 [click sessionId="abc123" selector="#delete-button"]
-[get_dialogs sessionId="abc123"]
 ```
 
 ## Tool Reference
@@ -338,20 +258,6 @@ Get accessibility tree snapshot in ARIA format.
 
 **Returns:** YAML-formatted accessibility tree
 
-### get_network_logs
-
-Get network request logs with filtering options.
-
-**Parameters:**
-- `sessionId`: string
-- `resourceTypes` (optional): array of "document" | "script" | "stylesheet" | "image" | "font" | "fetch" | "xhr" | "websocket" | "manifest" | "other"
-- `methods` (optional): array of "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS" | "HEAD"
-- `urlPattern` (optional): regex pattern to filter URLs
-- `failedOnly` (optional): boolean (default: false)
-- `limit` (optional): number (default: 100)
-
-**Returns:** `{ requests: [...] }`
-
 ### run_script
 
 Execute JavaScript in the browser context.
@@ -362,39 +268,38 @@ Execute JavaScript in the browser context.
 
 **Returns:** `{ success: boolean, result?: any, error?: string }`
 
-### get_metrics
-
-Get page performance metrics.
-
-**Parameters:**
-- `sessionId`: string
-
-**Returns:** `{ metrics: { loadTime, domContentLoaded, firstPaint, firstContentfulPaint, resourceCount, memory, transferSize } }`
-
 ## Comparison
 
-| Feature | Chrome DevTools MCP | Playwright MCP | Browserbase | **This Project** |
-|---------|---------------------|----------------|-------------|------------------|
-| Parallel Sessions | No | No | Yes (Cloud) | **Yes (Local)** |
-| Tool Count | ~20 | ~30 | ~10 | **63 tools** |
-| Console Logs | Yes | Yes | No | **Yes** |
-| Network Logs | Yes | No | No | **Yes** |
-| JS Error Detection | No | No | No | **Yes** |
-| Dialog Handling | Yes | No | No | **Yes** |
-| Performance Metrics | Yes | No | No | **Yes** |
-| Output Format | a11y tree | a11y tree | Screenshot | **ARIA snapshot** |
-| JavaScript Execution | Yes | Yes | No | **Yes** |
-| Cookie Management | Yes | No | No | **Yes** |
-| Storage Access | No | No | No | **Yes** |
-| File Upload | No | Yes | No | **Yes** |
-| PDF Generation | No | No | No | **Yes** |
-| Frame Support | Yes | No | No | **Yes** |
-| Cost | Free | Free | Paid | **Free** |
+| Feature | Chrome DevTools MCP | Playwright MCP | **This Project** |
+|---------|---------------------|----------------|------------------|
+| Parallel Sessions | No | No | **Yes** |
+| Session Isolation | No | No | **Yes (API-level)** |
+| Tool Count | ~26 | ~22 | **22 (Lite) / 63 (Full)** |
+| Context Tokens | ~17k | ~14k | **~14k (Lite) / ~40k (Full)** |
+| Console Logs | Yes | Yes | **Yes** |
+| Dialog Handling | Yes | No | **Yes** |
+| JavaScript Execution | Yes | Yes | **Yes** |
+| File Upload | No | Yes | **Yes** |
+| Cost | Free | Free | **Free** |
+
+### Context Token Usage (Measured)
+
+Token consumption when loaded as MCP tools in Claude Code (`/context` command):
+
+| MCP Server | Tools | Total Tokens | Avg/Tool |
+|------------|-------|--------------|----------|
+| **playwright-parallel-mcp (Lite)** | 22 | ~14,000 | 640 |
+| **playwright-parallel-mcp (Full)** | 63 | 40,343 | 640 |
+| [@playwright/mcp](https://github.com/microsoft/playwright-mcp) | 22 | 14,534 | 661 |
+| [chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) | 26 | 17,668 | 680 |
+
+> **Lite mode (default)** provides the same tool count as @playwright/mcp with comparable token usage, while adding session isolation for parallel execution.
 
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `PLAYWRIGHT_PARALLEL_MODE` | `lite` | Mode: `lite` (22 tools) or `full` (63 tools) |
 | `MAX_SESSIONS` | 10 | Maximum number of concurrent browser sessions |
 | `SESSION_TIMEOUT_MS` | 3600000 | Session inactivity timeout (1 hour) |
 
@@ -426,6 +331,74 @@ src/
   index.ts          # MCP server entry point with all tool definitions
   session-manager.ts # Browser session lifecycle management
 ```
+
+## Full Mode
+
+Full mode provides capabilities that **cannot be replicated with `run_script`** and are essential for specific use cases.
+
+### When to Use Full Mode
+
+| Use Case | Required Tools | Why run_script Can't Help |
+|----------|----------------|---------------------------|
+| **API Monitoring** | `get_network_logs` | Captures all HTTP requests/responses including headers, timing, status codes |
+| **Performance Analysis** | `get_metrics` | Access to Navigation Timing API, memory usage, paint metrics |
+| **PDF Report Generation** | `generate_pdf` | Browser-level PDF rendering with page formatting options |
+| **iframe Automation** | `frame_click`, `frame_fill` | Cross-origin iframe access that JavaScript cannot reach |
+| **JS Error Detection** | `get_page_errors` | Captures uncaught exceptions before they're lost |
+| **Accessibility Audits** | `get_accessibility_tree` | Full ARIA tree structure for compliance testing |
+
+### Example: API Testing with Network Logs
+
+```
+User: Test the login API and verify the response
+
+Claude: I'll monitor network requests during login.
+
+[get_network_logs sessionId="abc" resourceTypes=["fetch","xhr"]]
+→ Captured: POST /api/login (200, 145ms, response body available)
+```
+
+This is impossible with `run_script` because:
+- Fetch/XHR interception requires setup before requests are made
+- Response bodies are not accessible after completion
+- Timing information is lost
+
+### Configuration
+
+```json
+{
+  "mcpServers": {
+    "playwright-parallel": {
+      "command": "npx",
+      "args": ["playwright-parallel-mcp"],
+      "env": {
+        "PLAYWRIGHT_PARALLEL_MODE": "full"
+      }
+    }
+  }
+}
+```
+
+### Additional Tools (41 tools, ~40k tokens)
+
+<details>
+<summary>Click to expand full tool list</summary>
+
+- **Navigation**: go_forward
+- **Page Inspection**: get_content, get_html
+- **User Interaction**: check, uncheck
+- **Wait Tools**: wait_for_selector, wait_for_load_state, wait_for_url, wait_for_function
+- **Dialog**: get_dialogs
+- **Element State**: get_element_state, get_attribute, get_bounding_box, count_elements, get_all_texts
+- **Scroll**: scroll, scroll_into_view
+- **Mouse**: mouse_move, mouse_click, mouse_down, mouse_up, mouse_wheel
+- **Emulation**: set_geolocation, set_offline, set_extra_http_headers
+- **Storage/Cookies**: get_cookies, set_cookies, get_storage, set_storage
+- **Network**: get_network_logs
+- **PDF/Frame**: generate_pdf, list_frames, frame_click, frame_fill, frame_get_content
+- **Debug**: get_page_errors, clear_logs, expose_function, add_init_script, get_metrics, get_accessibility_tree
+
+</details>
 
 ## License
 
