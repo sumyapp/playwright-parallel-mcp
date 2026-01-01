@@ -14,7 +14,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
-      include: ['src/session-manager.ts'],
+      include: ['src/session-manager.ts', 'src/mcp-client.ts'],
       exclude: ['src/**/*.d.ts', 'src/**/*.test.ts']
     }
   }

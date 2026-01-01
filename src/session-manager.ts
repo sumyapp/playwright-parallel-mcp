@@ -1,86 +1,43 @@
-import { chromium, firefox, webkit, Browser, BrowserContext, Page, ConsoleMessage, Request, Response } from "playwright";
-
-export interface NetworkLog {
-  id: string;
-  url: string;
-  method: string;
-  resourceType: string;
-  status?: number;
-  statusText?: string;
-  requestHeaders: Record<string, string>;
-  responseHeaders?: Record<string, string>;
-  timing: {
-    startTime: string;
-    endTime?: string;
-    duration?: number;
-  };
-  failed?: boolean;
-  failureText?: string;
-}
-
-export interface ConsoleLog {
-  type: string;
-  text: string;
-  timestamp: string;
-  location?: {
-    url: string;
-    lineNumber: number;
-    columnNumber: number;
-  };
-}
-
-export interface PageError {
-  message: string;
-  name: string;
-  stack?: string;
-  timestamp: string;
-}
-
-export interface PendingDialog {
-  id: string;
-  type: "alert" | "confirm" | "prompt" | "beforeunload";
-  message: string;
-  defaultValue?: string;
-  timestamp: string;
-  handled: boolean;
-}
+import { McpClient } from "./mcp-client.js";
+import {
+  BackendConfig,
+  DEFAULT_BACKENDS,
+  McpTool,
+  McpToolCallResult,
+  SessionInfo
+} from "./types.js";
 
 export interface Session {
   id: string;
-  browser: Browser;
-  context: BrowserContext;
-  page: Page;
-  browserType: string;
-  consoleLogs: ConsoleLog[];
-  networkLogs: Map<string, NetworkLog>;
-  pageErrors: PageError[];
-  pendingDialogs: PendingDialog[];
-  dialogAutoRespond: boolean;
-  dialogAutoResponse: { accept: boolean; promptText?: string };
+  client: McpClient;
+  backend: string;
   createdAt: Date;
   lastUsedAt: Date;
 }
 
 export interface CreateSessionOptions {
-  browser?: "chromium" | "firefox" | "webkit";
-  headless?: boolean;
-  viewport?: { width: number; height: number };
+  backend?: string;  // "playwright" | "chrome-devtools" | カスタムコマンド
 }
 
+/**
+ * セッションマネージャー - 子MCPプロセスを管理
+ */
 class SessionManager {
   private sessions = new Map<string, Session>();
-  private maxConsoleLogs = 1000;
-  private maxNetworkLogs = 500;
   private maxSessions = parseInt(process.env.MAX_SESSIONS || "10", 10);
-  private requestToLogId = new WeakMap<Request, string>();
   private creating = 0;
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private sessionTimeout = parseInt(process.env.SESSION_TIMEOUT_MS || "3600000", 10);
+  private cachedTools: McpTool[] | null = null;
+  private defaultBackend = process.env.MCP_BACKEND || "playwright";
 
   constructor() {
     this.startCleanupInterval();
   }
 
+  /**
+   * クリーンアップインターバルを開始
+   */
   startCleanupInterval(): void {
     this.stopCleanupInterval();
     this.cleanupInterval = setInterval(() => {
@@ -93,6 +50,9 @@ class SessionManager {
     }
   }
 
+  /**
+   * クリーンアップインターバルを停止
+   */
   stopCleanupInterval(): void {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
@@ -100,6 +60,9 @@ class SessionManager {
     }
   }
 
+  /**
+   * 非アクティブなセッションをクリーンアップ
+   */
   async cleanupInactiveSessions(): Promise<number> {
     const now = Date.now();
     const sessionsToClose: string[] = [];
@@ -125,212 +88,129 @@ class SessionManager {
     return closedCount;
   }
 
-  async createSession(options: CreateSessionOptions = {}): Promise<Session> {
-    if (this.sessions.size + this.creating >= this.maxSessions) {
-      throw new Error(`Maximum number of sessions (${this.maxSessions}) reached. Close existing sessions first.`);
+  /**
+   * npmパッケージ名のバリデーション
+   * @see https://github.com/npm/validate-npm-package-name
+   */
+  private isValidPackageName(name: string): boolean {
+    // npmパッケージ名の規則: スコープ付き(@org/pkg)または通常のパッケージ名
+    // 小文字、数字、ハイフン、アンダースコア、ドット、スコープ(@)のみ許可
+    const packageNamePattern = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
+    return packageNamePattern.test(name);
+  }
+
+  /**
+   * バックエンド設定を取得
+   */
+  private getBackendConfig(backend: string): BackendConfig {
+    // プリセットバックエンドを確認
+    if (DEFAULT_BACKENDS[backend]) {
+      return DEFAULT_BACKENDS[backend];
     }
 
+    // カスタムバックエンドはnpx経由でのみ実行可能
+    // セキュリティ: パッケージ名のバリデーションでコマンドインジェクションを防止
+    if (!this.isValidPackageName(backend)) {
+      throw new Error(
+        `Invalid backend package name: "${backend}". ` +
+        `Use a valid npm package name or one of: ${Object.keys(DEFAULT_BACKENDS).join(", ")}`
+      );
+    }
+
+    return {
+      command: "npx",
+      args: [`${backend}@latest`]
+    };
+  }
+
+  /**
+   * 利用可能なツール一覧を取得（キャッシュ）
+   */
+  async getAvailableTools(): Promise<McpTool[]> {
+    if (this.cachedTools) {
+      return this.cachedTools;
+    }
+
+    // 一時的なクライアントを起動してツール一覧を取得
+    const config = this.getBackendConfig(this.defaultBackend);
+    const tempClient = new McpClient(config);
+
+    try {
+      await tempClient.start();
+      this.cachedTools = tempClient.getTools();
+      return this.cachedTools;
+    } finally {
+      await tempClient.stop();
+    }
+  }
+
+  /**
+   * 新しいセッションを作成
+   */
+  async createSession(options: CreateSessionOptions = {}): Promise<Session> {
+    // 競合状態を防ぐため、先にインクリメントしてからチェック
     this.creating++;
 
     try {
-      const browserType = options.browser ?? "chromium";
-      const headless = options.headless ?? true;
-      const viewport = options.viewport ?? { width: 1280, height: 720 };
+      // セッション数チェック（creating を含めた総数）
+      if (this.sessions.size + this.creating > this.maxSessions) {
+        throw new Error(`Maximum number of sessions (${this.maxSessions}) reached. Close existing sessions first.`);
+      }
 
-      const launcher = browserType === "firefox" ? firefox : browserType === "webkit" ? webkit : chromium;
-      const browser = await launcher.launch({ headless });
+      const backend = options.backend ?? this.defaultBackend;
+      const config = this.getBackendConfig(backend);
+      const client = new McpClient(config);
 
-      const context = await browser.newContext({ viewport });
-      const page = await context.newPage();
+      await client.start();
 
       const now = new Date();
       const session: Session = {
         id: crypto.randomUUID(),
-        browser,
-        context,
-        page,
-        browserType,
-        consoleLogs: [],
-        networkLogs: new Map<string, NetworkLog>(),
-        pageErrors: [],
-        pendingDialogs: [],
-        dialogAutoRespond: true,
-        dialogAutoResponse: { accept: true },
+        client,
+        backend,
         createdAt: now,
         lastUsedAt: now
       };
 
-      browser.on("disconnected", () => {
-        if (this.sessions.has(session.id)) {
-          this.cleanupSessionListeners(session);
-          this.sessions.delete(session.id);
-          console.error(`Browser disconnected unexpectedly for session ${session.id}`);
-        }
-      });
-
-      page.on("console", (msg: ConsoleMessage) => {
-        const log: ConsoleLog = {
-          type: this.mapConsoleType(msg.type()),
-          text: msg.text(),
-          timestamp: new Date().toISOString(),
-          location: msg.location() ? {
-            url: msg.location().url,
-            lineNumber: msg.location().lineNumber,
-            columnNumber: msg.location().columnNumber
-          } : undefined
-        };
-
-        session.consoleLogs.push(log);
-
-        if (session.consoleLogs.length > this.maxConsoleLogs) {
-          session.consoleLogs.shift();
-        }
-      });
-
-      page.on("request", (request: Request) => {
-        const logId = crypto.randomUUID();
-        this.requestToLogId.set(request, logId);
-
-        const networkLog: NetworkLog = {
-          id: logId,
-          url: request.url(),
-          method: request.method(),
-          resourceType: request.resourceType(),
-          requestHeaders: request.headers(),
-          timing: {
-            startTime: new Date().toISOString()
-          }
-        };
-
-        session.networkLogs.set(logId, networkLog);
-
-        if (session.networkLogs.size > this.maxNetworkLogs) {
-          const firstKey = session.networkLogs.keys().next().value;
-          if (firstKey) {
-            session.networkLogs.delete(firstKey);
-          }
-        }
-      });
-
-      page.on("response", (response: Response) => {
-        const request = response.request();
-        const logId = this.requestToLogId.get(request);
-
-        if (logId) {
-          const networkLog = session.networkLogs.get(logId);
-          if (networkLog) {
-            const endTime = new Date();
-            const startTime = new Date(networkLog.timing.startTime);
-
-            networkLog.status = response.status();
-            networkLog.statusText = response.statusText();
-            networkLog.responseHeaders = response.headers();
-            networkLog.timing.endTime = endTime.toISOString();
-            networkLog.timing.duration = endTime.getTime() - startTime.getTime();
-          }
-        }
-      });
-
-      page.on("requestfailed", (request: Request) => {
-        const logId = this.requestToLogId.get(request);
-
-        if (logId) {
-          const networkLog = session.networkLogs.get(logId);
-          if (networkLog) {
-            const endTime = new Date();
-            const startTime = new Date(networkLog.timing.startTime);
-
-            networkLog.failed = true;
-            networkLog.failureText = request.failure()?.errorText;
-            networkLog.timing.endTime = endTime.toISOString();
-            networkLog.timing.duration = endTime.getTime() - startTime.getTime();
-          }
-        }
-      });
-
-      page.on("pageerror", (error: Error) => {
-        const pageError: PageError = {
-          message: error.message,
-          name: error.name,
-          stack: error.stack,
-          timestamp: new Date().toISOString()
-        };
-
-        session.pageErrors.push(pageError);
-
-        if (session.pageErrors.length > this.maxConsoleLogs) {
-          session.pageErrors.shift();
-        }
-      });
-
-      page.on("dialog", async (dialog) => {
-        const pendingDialog: PendingDialog = {
-          id: crypto.randomUUID(),
-          type: dialog.type() as PendingDialog["type"],
-          message: dialog.message(),
-          defaultValue: dialog.defaultValue(),
-          timestamp: new Date().toISOString(),
-          handled: false
-        };
-
-        session.pendingDialogs.push(pendingDialog);
-
-        if (session.dialogAutoRespond) {
-          if (session.dialogAutoResponse.accept) {
-            await dialog.accept(session.dialogAutoResponse.promptText);
-          } else {
-            await dialog.dismiss();
-          }
-          pendingDialog.handled = true;
-        }
-
-        if (session.pendingDialogs.length > 100) {
-          session.pendingDialogs.shift();
-        }
-      });
-
+      // セッションをMapに追加してからexitハンドラーを登録
+      // （競合状態を防ぐため、この順序が重要）
       this.sessions.set(session.id, session);
+
+      // プロセス終了時にセッションをクリーンアップ
+      client.on("exit", () => {
+        if (this.sessions.has(session.id)) {
+          this.sessions.delete(session.id);
+          console.error(`Backend process exited for session ${session.id}`);
+        }
+      });
+
       return session;
     } finally {
       this.creating--;
     }
   }
 
-  private cleanupSessionListeners(session: Session): void {
-    try {
-      session.page.removeAllListeners("console");
-      session.page.removeAllListeners("request");
-      session.page.removeAllListeners("response");
-      session.page.removeAllListeners("requestfailed");
-      session.page.removeAllListeners("pageerror");
-      session.page.removeAllListeners("dialog");
-    } catch {
-      // ページが既に閉じている場合は無視
-    }
-
-    session.consoleLogs.length = 0;
-    session.networkLogs.clear();
-    session.pageErrors.length = 0;
-    session.pendingDialogs.length = 0;
-  }
-
+  /**
+   * セッションを閉じる
+   */
   async closeSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session not found: ${sessionId}`);
     }
 
-    this.cleanupSessionListeners(session);
-
     try {
-      await session.browser.close();
+      await session.client.stop();
     } catch (error) {
-      console.error(`Error closing browser for session ${sessionId}:`, error);
+      console.error(`Error stopping client for session ${sessionId}:`, error);
     } finally {
       this.sessions.delete(sessionId);
     }
   }
 
+  /**
+   * 全セッションを閉じる
+   */
   async closeAllSessions(): Promise<void> {
     const closePromises = Array.from(this.sessions.keys()).map(id =>
       this.closeSession(id).catch(err =>
@@ -340,10 +220,16 @@ class SessionManager {
     await Promise.all(closePromises);
   }
 
+  /**
+   * セッションを取得
+   */
   getSession(sessionId: string): Session | undefined {
     return this.sessions.get(sessionId);
   }
 
+  /**
+   * 最終使用時刻を更新
+   */
   updateLastUsed(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (session) {
@@ -351,20 +237,36 @@ class SessionManager {
     }
   }
 
-  listSessions(): Session[] {
-    return Array.from(this.sessions.values());
+  /**
+   * 全セッションを一覧取得
+   */
+  listSessions(): SessionInfo[] {
+    return Array.from(this.sessions.values()).map(session => ({
+      id: session.id,
+      backend: session.backend,
+      createdAt: session.createdAt,
+      lastUsedAt: session.lastUsedAt
+    }));
   }
 
-  private mapConsoleType(type: string): string {
-    const typeMap: Record<string, string> = {
-      "log": "log",
-      "info": "info",
-      "warning": "warn",
-      "error": "error",
-      "debug": "debug",
-      "trace": "trace"
-    };
-    return typeMap[type] || "log";
+  /**
+   * ツールを呼び出し
+   */
+  async callTool(sessionId: string, toolName: string, args: Record<string, unknown>): Promise<McpToolCallResult> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    this.updateLastUsed(sessionId);
+    return session.client.callTool(toolName, args);
+  }
+
+  /**
+   * デフォルトバックエンドを取得
+   */
+  getDefaultBackend(): string {
+    return this.defaultBackend;
   }
 }
 
