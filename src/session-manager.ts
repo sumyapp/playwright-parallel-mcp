@@ -17,6 +17,7 @@ export interface Session {
 
 export interface CreateSessionOptions {
   backend?: string;  // "playwright" | "chrome-devtools" | カスタムコマンド
+  headless?: boolean; // Override headless mode for this session
 }
 
 /**
@@ -30,6 +31,8 @@ class SessionManager {
   private sessionTimeout = parseInt(process.env.SESSION_TIMEOUT_MS || "3600000", 10);
   private cachedTools: McpTool[] | null = null;
   private defaultBackend = process.env.MCP_BACKEND || "playwright";
+  private headless = process.env.HEADLESS !== "false";
+  private backendArgs = process.env.MCP_BACKEND_ARGS?.split(" ").filter(Boolean) || [];
 
   constructor() {
     this.startCleanupInterval();
@@ -102,25 +105,40 @@ class SessionManager {
   /**
    * バックエンド設定を取得
    */
-  private getBackendConfig(backend: string): BackendConfig {
+  private getBackendConfig(backend: string, headlessOverride?: boolean): BackendConfig {
+    let config: BackendConfig;
+
     // プリセットバックエンドを確認
     if (DEFAULT_BACKENDS[backend]) {
-      return DEFAULT_BACKENDS[backend];
+      config = { ...DEFAULT_BACKENDS[backend], args: [...DEFAULT_BACKENDS[backend].args] };
+    } else {
+      // カスタムバックエンドはnpx経由でのみ実行可能
+      // セキュリティ: パッケージ名のバリデーションでコマンドインジェクションを防止
+      if (!this.isValidPackageName(backend)) {
+        throw new Error(
+          `Invalid backend package name: "${backend}". ` +
+          `Use a valid npm package name or one of: ${Object.keys(DEFAULT_BACKENDS).join(", ")}`
+        );
+      }
+
+      config = {
+        command: "npx",
+        args: [`${backend}@latest`]
+      };
     }
 
-    // カスタムバックエンドはnpx経由でのみ実行可能
-    // セキュリティ: パッケージ名のバリデーションでコマンドインジェクションを防止
-    if (!this.isValidPackageName(backend)) {
-      throw new Error(
-        `Invalid backend package name: "${backend}". ` +
-        `Use a valid npm package name or one of: ${Object.keys(DEFAULT_BACKENDS).join(", ")}`
-      );
+    // Append --headless for playwright backend (per-session override > env var)
+    const useHeadless = headlessOverride ?? this.headless;
+    if (backend === "playwright" && useHeadless) {
+      config.args.push("--headless");
     }
 
-    return {
-      command: "npx",
-      args: [`${backend}@latest`]
-    };
+    // Append any extra backend args from MCP_BACKEND_ARGS
+    if (this.backendArgs.length > 0) {
+      config.args.push(...this.backendArgs);
+    }
+
+    return config;
   }
 
   /**
@@ -158,7 +176,7 @@ class SessionManager {
       }
 
       const backend = options.backend ?? this.defaultBackend;
-      const config = this.getBackendConfig(backend);
+      const config = this.getBackendConfig(backend, options.headless);
       const client = new McpClient(config);
 
       await client.start();

@@ -17,11 +17,14 @@ server.tool(
   {
     backend: z.string().optional().describe(
       `Backend MCP server to use. Options: ${Object.keys(DEFAULT_BACKENDS).join(", ")} or any npm package name`
+    ),
+    headless: z.boolean().optional().describe(
+      "Run browser in headless mode (no visible window). Defaults to true. Set to false for visual debugging."
     )
   },
-  async ({ backend }) => {
+  async ({ backend, headless }) => {
     try {
-      const session = await sessionManager.createSession({ backend });
+      const session = await sessionManager.createSession({ backend, headless });
       return {
         content: [{
           type: "text",
@@ -221,8 +224,9 @@ async function main() {
   // 3つのセッション管理ツール + バックエンドツール
   const totalTools = 3 + toolCount;
 
+  const headless = process.env.HEADLESS !== "false";
   console.error(`playwright-parallel-mcp server started`);
-  console.error(`  Backend: ${backend}`);
+  console.error(`  Backend: ${backend}${backend === "playwright" ? (headless ? " (headless)" : " (headed)") : ""}`);
   console.error(`  Tools: ${totalTools} (3 session + ${toolCount} backend)`);
 
   const transport = new StdioServerTransport();
