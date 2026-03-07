@@ -106,7 +106,7 @@ playwright-parallel-mcp
 
 | Tool | Description |
 |------|-------------|
-| `create_session` | Create a new isolated browser session |
+| `create_session` | Create a new isolated browser session. Accepts optional `headless` (boolean) to override the default |
 | `close_session` | Close a browser session and terminate its backend process |
 | `list_sessions` | List all active sessions |
 
@@ -218,6 +218,24 @@ Any npm package that provides an MCP server can be used:
 }
 ```
 
+### Headed Mode (Visible Browser)
+
+By default, the Playwright backend runs in headless mode. To see the browser window:
+
+```json
+{
+  "mcpServers": {
+    "playwright-parallel": {
+      "command": "npx",
+      "args": ["playwright-parallel-mcp"],
+      "env": {
+        "HEADLESS": "false"
+      }
+    }
+  }
+}
+```
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -225,6 +243,8 @@ Any npm package that provides an MCP server can be used:
 | `MCP_BACKEND` | `playwright` | Backend MCP server: `playwright`, `chrome-devtools`, or any npm package |
 | `MAX_SESSIONS` | 10 | Maximum number of concurrent browser sessions |
 | `SESSION_TIMEOUT_MS` | 3600000 | Session inactivity timeout (1 hour) |
+| `HEADLESS` | `true` | Run Playwright browser in headless mode. Set to `false` for headed mode |
+| `MCP_BACKEND_ARGS` | _(none)_ | Additional space-separated arguments to pass to the backend MCP server |
 
 ## Comparison
 
