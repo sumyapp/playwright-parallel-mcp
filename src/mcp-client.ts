@@ -36,7 +36,8 @@ export class McpClient extends EventEmitter {
 
       this.process = spawn(this.config.command, this.config.args, {
         stdio: ["pipe", "pipe", "pipe"],
-        env
+        env,
+        shell: true
       });
 
       this.process.stdout?.on("data", (data: Buffer) => {
