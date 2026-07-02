@@ -218,6 +218,29 @@ Any npm package that provides an MCP server can be used:
 }
 ```
 
+### Firefox Backend (realistic fingerprint)
+
+`@executeautomation/mcp-playwright` supports a `browserType`/`CHROME_EXECUTABLE_PATH` combo, so it
+can be pointed at a real Firefox binary through the custom backend mechanism above:
+
+```json
+{
+  "mcpServers": {
+    "playwright-parallel": {
+      "command": "npx",
+      "args": ["playwright-parallel-mcp"],
+      "env": {
+        "MCP_BACKEND": "@executeautomation/mcp-playwright",
+        "CHROME_EXECUTABLE_PATH": "/path/to/firefox"
+      }
+    }
+  }
+}
+```
+
+Useful with a Firefox build like [invisible_playwright](https://github.com/feder-cr/invisible_playwright),
+patched at the source level for a realistic fingerprint, for sessions that hit bot detection on Chromium.
+
 ## Environment Variables
 
 | Variable | Default | Description |
